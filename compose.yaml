@@ -1,6 +1,8 @@
 services:
   bookmarker:
-    build: ./docker
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: bookmarker
     ports:
       - "3000:3000"
