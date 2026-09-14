@@ -15,8 +15,8 @@ export async function checkBookmark(b: any): Promise<CheckResult | null> {
       return { id: b.id, reachable: true, latency_ms: Date.now() - t0, status_code: res.status, error: null };
     }
     if (b.check_type === "tcp") {
-      // accept "host:port" and "tcp://host:port"; a port is required
-      const raw = b.address.trim().replace(/^tcp:\/\//, "").replace(/\/$/, "");
+      // accept "host:port", "tcp://host:port", "http(s)://host:port"; a port is required
+      const raw = b.address.trim().replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
       const sep = raw.lastIndexOf(":");
       const host = sep > 0 ? raw.slice(0, sep) : "";
       const port = sep > 0 ? Number(raw.slice(sep + 1)) : NaN;
