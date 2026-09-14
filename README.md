@@ -1,5 +1,8 @@
 # Bookmarker
 
+<img width="1056" height="732" alt="image" src="https://github.com/user-attachments/assets/af3af5ba-fc3e-414f-9de2-66882fd67e29" />
+
+
 A self-hosted bookmark dashboard with live reachability monitoring.
 
 Bookmarks are organized into categories and rendered as a clean, themeable grid.
