@@ -15,8 +15,13 @@ export async function checkBookmark(b: any): Promise<CheckResult | null> {
       return { id: b.id, reachable: true, latency_ms: Date.now() - t0, status_code: res.status, error: null };
     }
     if (b.check_type === "tcp") {
-      const [host, port] = b.address.replace(/^tcp:\/\//, "").split(":");
-      if (!host || !port) return { id: b.id, reachable: false, latency_ms: null, status_code: null, error: "invalid address" };
+      // accept "host:port" and "tcp://host:port"; a port is required
+      const raw = b.address.trim().replace(/^tcp:\/\//, "").replace(/\/$/, "");
+      const sep = raw.lastIndexOf(":");
+      const host = sep > 0 ? raw.slice(0, sep) : "";
+      const port = sep > 0 ? Number(raw.slice(sep + 1)) : NaN;
+      if (!host || !Number.isInteger(port) || port <= 0 || port > 65535)
+        return { id: b.id, reachable: false, latency_ms: null, status_code: null, error: "invalid address (expected host:port)" };
       const socket = await Bun.connect({
         hostname: host,
         port: Number(port),

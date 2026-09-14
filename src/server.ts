@@ -217,7 +217,9 @@ Bun.serve({
           const b = q.bookmarkById.get(id) as any;
           const r = b ? await checkBookmark(b) : null;
           if (r) {
+            console.log(new Date().toISOString(), `check [${b.title}] ${b.check_type} ${b.address} -> ${r.reachable ? "up" : "DOWN"}${r.latency_ms != null ? " " + r.latency_ms + "ms" : ""}${r.status_code ? " (HTTP " + r.status_code + ")" : ""}${r.error ? " " + r.error : ""}`);
             q.setReachable.run(r.reachable ? 1 : 0, id);
+            q.insertCheck.run(id, Date.now(), r.reachable ? 1 : 0, r.latency_ms ?? null, r.status_code ?? null, r.error ?? null);
             broadcast();
           }
           return json(r ?? { reachable: null });
