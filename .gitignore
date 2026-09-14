@@ -1,0 +1,10 @@
+# local state — never publish
+bookmarker.db
+bookmarker.db-shm
+bookmarker.db-wal
+*.log
+.DS_Store
+
+# dependencies
+node_modules/
+.env

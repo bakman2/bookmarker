@@ -1,0 +1,5 @@
+node_modules/
+bookmarker.db
+bookmarker.db-shm
+bookmarker.db-wal
+*.log

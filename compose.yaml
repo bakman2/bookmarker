@@ -1,0 +1,12 @@
+services:
+  bookmarker:
+    build: ./docker
+    container_name: bookmarker
+    ports:
+      - "3000:3000"
+    volumes:
+      - bookmarker-data:/data
+    restart: unless-stopped
+
+volumes:
+  bookmarker-data:

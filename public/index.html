@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bookmarks</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="/js/vimesh.style.min.js"></script>
+    <script src="/app.js?v=38"></script>
+    <script src="/js/alpinejs.min.js" defer></script>
+    <style>
+      body {
+        font-family: 'Barlow', sans-serif !important;
+      }
+      [x-cloak] {
+        display: none !important;
+      }
+      [contenteditable]:focus {
+        outline: 1px dashed rgba(255, 255, 255, 0.4);
+      }
+      html {
+        scrollbar-gutter: stable;
+      }
+      .drag-ghost {
+        border: 1px dashed rgba(255, 255, 255, 0.5) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 0.25rem;
+      }
+      .drag-ghost > * {
+        visibility: hidden;
+      }
+      .cursor-grab {
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .group {
+        position: relative;
+      }
+      .card-text {
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .group:hover .card-text {
+        text-overflow: ellipsis;
+        padding-right: 36px;
+      }
+      .card-chevron {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        opacity: 0;
+      }
+      .group:hover .card-chevron {
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body :class="theme.background" x-data="data()">
+    <div x-cloak class="max-w-5xl mx-auto px-2 md:px-12 md:pt-10 md:pb-2">
+      <div class="flex items-center gap-2 mt-2" x-show="editing || theme?.title !== 'hide'">
+        <div
+          class="uppercase text-2xl md:text-4xl flex-1"
+          :class="[theme.heading, theme?.title !== 'hide' ? 'mb-2 md:mb-4' : '', dragId !== null ? 'pointer-events-none cursor-default' : '']"
+          x-text="theme.title_text"
+          x-show="theme?.title !== 'hide'"
+          :contenteditable="editing"
+        ></div>
+        <button
+          x-cloak
+          x-show="editing && theme?.title !== 'hide'"
+          @click="toggleTitle()"
+          title="hide title"
+          class="w-7 h-7 shrink-0 flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-gray-500/40 rounded"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        </button>
+        <button
+          x-cloak
+          x-show="editing && theme?.title === 'hide'"
+          @click="toggleTitle()"
+          title="show title"
+          class="w-7 h-7 shrink-0 flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-gray-500/40 rounded"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <template x-for="group in bookmarks">
+        <div>
+          <div class="flex items-center gap-3 mt-4 mb-2" @dragover.stop @drop.prevent.stop>
+            <div
+              x-text="group.group"
+              :data-group-title="group.id"
+              class="uppercase w-full"
+              :class="theme.heading"
+              :contenteditable="editing"
+              :class="dragId !== null ? 'pointer-events-none cursor-default' : ''"
+              @focusout="renameGroup($event, group)"
+              @keydown.enter.prevent="$event.target.blur()"
+            ></div>
+            <div x-show="editing" class="flex gap-1 shrink-0 items-center">
+              <button
+                @click="addBookmark(group)"
+                title="add bookmark"
+                class="w-6 h-6 flex items-center justify-center text-lg leading-none text-gray-500 hover:text-gray-200 hover:bg-gray-500/40 rounded"
+              >+</button>
+              <button
+                @click="deleteGroup(group)"
+                title="delete category"
+                class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-gray-500/40 rounded"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            class="mb-2 md:mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+            :class="[theme.gap, editing ? 'min-h-16' : '']"
+            :style="editing && dragId !== null && dragGroup === group.id ? 'outline: 1px solid rgba(255,255,255,0.35); outline-offset: 4px;' : (editing && dragId !== null ? 'outline: 1px dashed rgba(255,255,255,0.35); outline-offset: 4px;' : '')"
+            :data-gid="group.id"
+          >
+            <div
+              x-show="editing && group.links.length === 0"
+              class="text-xs text-gray-400/70 uppercase p-3"
+            >drop bookmarks here</div>
+            <div
+              x-show="editing && dragId !== null && dragGroup === group.id && (dragTargetId !== null || dragAppend) && !group.links.some(l => l.id === dragId)"
+              class="drag-ghost min-h-12"
+              :style="ghostOrderStyle(group)"
+            ></div>
+            <template x-for="bookmark in group.links" :key="bookmark.id">
+              <div
+                :data-bid="bookmark.id"
+                :data-gid="group.id"
+                @click="editing ? openEdit(bookmark) : openBookmark(bookmark)"
+                @mousedown="dragMouseDown(group, bookmark, $event)"
+                class="group flex gap-2 p-2 leading-tight h-full"
+                :class="[theme.item ? theme.item : '', !isIndicator(bookmark) && !editing ? 'cursor-pointer' : '', editing ? 'cursor-grab' : '', isGhost(group, bookmark) ? 'drag-ghost' : '', dragId === bookmark.id && !isGhost(group, bookmark) ? 'opacity-50' : '']"
+                :style="dragCardStyle(group, bookmark)"
+              >
+                <div
+                  class="w-1 h-full rounded-full bg-gray-700"
+                  :class="bookmark.reachable === undefined ? '' : (bookmark.reachable ? 'bg-green-400' : 'bg-red-400 animate-pulse')"
+                ></div>
+                <div class="w-full min-w-0">
+                  <div
+                    x-text="bookmark.title"
+                    class="card-text uppercase"
+                  ></div>
+
+                  <div x-show="theme.subtitle == 'show'"
+                    x-text="getHostname(bookmark)"
+                    class="card-text text-gray-300/70 text-xs uppercase"
+                    :class="theme.item_subtitle"
+                  ></div>
+                </div>
+                <a
+                  x-show="!editing"
+                  :href="'/history.html?id=' + bookmark.id"
+                  @click.stop
+                  title="view details"
+                  class="card-chevron w-9 flex items-center justify-center text-white/80 bg-gray-600 rounded-r"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </a>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <button
+          x-cloak
+          x-show="editing"
+          @click="addGroup()"
+          title="add category"
+          class="w-8 h-8 text-2xl leading-none text-gray-400 hover:text-gray-200 hover:bg-gray-500/40 rounded uppercase mt-4"
+        >+</button>
+
+      </div>
+
+    <!-- bookmark edit modal -->
+    <div
+      x-cloak
+      x-show="modal.open"
+      x-transition.opacity
+      class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
+      @mousedown.self="modalDownAt = [$event.clientX, $event.clientY]"
+      @click.self="if (modalDownAt && Math.hypot($event.clientX - modalDownAt[0], $event.clientY - modalDownAt[1]) < 6) closeEdit(); modalDownAt = null"
+      @keydown.escape.window="closeEdit()"
+    >
+      <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-5 text-gray-100">
+        <div class="uppercase text-lg mb-4" x-text="modal.creating ? 'New bookmark' : 'Edit bookmark'"></div>
+
+        <div class="space-y-3">
+          <label class="block">
+            <span class="text-xs uppercase text-gray-400">Title</span>
+            <input x-model="modal.form.title" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1 uppercase">
+          </label>
+          <label class="block">
+            <span class="text-xs uppercase text-gray-400">Address</span>
+            <input x-model="modal.form.address" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1" placeholder="https:// or host:port">
+          </label>
+          <label class="block">
+            <span class="text-xs uppercase text-gray-400">Subtitle</span>
+            <input x-model="modal.form.description" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1" placeholder="shown instead of hostname">
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs uppercase text-gray-400">Reachability check</span>
+              <select x-model="modal.form.check_type" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1">
+                <option value="none">none</option>
+                <option value="http">http</option>
+                <option value="tcp">tcp</option>
+              </select>
+            </label>
+          </div>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" x-model="modal.form.is_indicator">
+            <span class="text-xs uppercase text-gray-400">Indicator only (no click action)</span>
+          </label>
+        </div>
+
+        <div class="flex justify-between mt-5">
+          <button
+            x-show="!modal.creating"
+            @click="deleteBookmark()"
+            class="px-3 py-1.5 text-sm bg-red-500/30 hover:bg-red-500/60 rounded uppercase"
+          >Delete</button>
+          <div class="flex gap-2 ml-auto">
+            <button @click="closeEdit()" class="px-3 py-1.5 text-sm bg-gray-600 hover:bg-gray-500 rounded uppercase">Cancel</button>
+            <button @click="saveEdit()" class="px-3 py-1.5 text-sm bg-gray-500/60 hover:bg-gray-500 rounded uppercase">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- edit mode toggle: subtle pencil top-right, or press "e" -->
+    <div class="fixed top-3 right-3 flex items-center gap-2">
+      <select
+        x-cloak
+        x-show="editing"
+        @change="applyTheme($event.target.value)"
+        title="switch theme"
+        class="text-xs uppercase bg-gray-800/90 text-gray-300 rounded px-1.5 py-1 outline-none border border-gray-600"
+      >
+        <option value="" disabled :selected="!theme.name">theme</option>
+        <template x-for="(t, name) in themes" :key="name">
+          <option :value="name" x-text="name" :selected="theme.name === name"></option>
+        </template>
+      </select>
+      <div
+        class="cursor-pointer text-gray-400 hover:text-gray-200"
+        :class="editing ? 'opacity-100 text-green-400' : 'opacity-20 hover:opacity-100'"
+        @click="toggleEdit()"
+        title="toggle edit mode"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="16" cy="16" r="2"/>
+          <circle cx="6" cy="16" r="2"/>
+          <circle cx="26" cy="16" r="2"/>
+        </svg>
+      </div>
+    </div>
+  </body>
+</html>

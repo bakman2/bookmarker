@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bookmark details</title>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="/js/vimesh.style.min.js"></script>
+    <script src="/js/alpinejs.min.js" defer></script>
+    <style>
+      body { font-family: 'Barlow', sans-serif !important; }
+      [x-cloak] { display: none !important; }
+      .range-btn {
+        border: 1px solid currentColor;
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen" :class="theme.background" x-data="details()">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+      <a href="/" class="text-xs uppercase" :class="theme.item_subtitle || 'text-gray-500'" style="cursor:pointer">← back to bookmarks</a>
+
+      <template x-if="bm">
+        <div>
+          <div class="flex items-center gap-3 mt-4">
+            <div class="w-2 h-10 rounded-full" :class="statusClass()"></div>
+            <div class="flex-1 min-w-0">
+              <div class="uppercase text-2xl truncate" :class="theme.heading" x-text="bm.title"></div>
+              <div class="text-sm truncate" :class="theme.item_subtitle" x-text="bm.description || bm.address"></div>
+            </div>
+            <a
+              :href="bm.address"
+              target="_blank"
+              class="px-3 py-1 text-sm rounded uppercase shrink-0" :class="cardCls()"
+            >open</a>
+          </div>
+
+          <div class="flex gap-2 mt-6">
+            <template x-for="r in ['15m', '1h', '3h', '6h', '1d']" :key="r">
+              <button
+                @click="range = r; load()"
+                class="px-3 py-1 text-xs rounded uppercase"
+                :class="(range === r ? cardCls() : 'range-btn ' + (theme.item_subtitle || 'text-gray-400'))"
+                x-text="r"
+              ></button>
+            </template>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+            <div class="rounded-lg p-3" :class="cardCls()">
+              <div class="text-[10px] uppercase" :class="theme.item_subtitle">uptime 24h</div>
+              <div class="text-xl mt-0.5" x-text="pct(data.uptime_24h)"></div>
+            </div>
+            <div class="rounded-lg p-3" :class="cardCls()">
+              <div class="text-[10px] uppercase" :class="theme.item_subtitle">uptime 7d</div>
+              <div class="text-xl mt-0.5" x-text="pct(data.uptime_7d)"></div>
+            </div>
+            <div class="rounded-lg p-3" :class="cardCls()">
+              <div class="text-[10px] uppercase" :class="theme.item_subtitle">uptime 30d</div>
+              <div class="text-xl mt-0.5" x-text="pct(data.uptime_30d)"></div>
+            </div>
+            <div class="rounded-lg p-3" :class="cardCls()">
+              <div class="text-[10px] uppercase text-gray-400/70" x-text="'avg latency · ' + range"></div>
+              <div class="text-xl mt-0.5" x-text="avgLat()"></div>
+            </div>
+          </div>
+
+          <div class="rounded-lg p-4 mt-4" :class="cardCls()">
+            <div class="flex justify-between text-[10px] uppercase mb-1" :class="theme.item_subtitle">
+              <div x-text="data.bars?.length ? timeLabel(data.bars[0].t) : ''"></div>
+              <div x-text="'uptime · ' + range"></div>
+              <div x-text="data.bars?.length ? timeLabel(data.bars[data.bars.length - 1].t) : ''"></div>
+            </div>
+            <div class="flex gap-[2px] h-8 items-stretch">
+              <template x-for="bar in data.bars || []" :key="bar.t">
+                <div class="flex-1 min-w-0 rounded-[1px]" :class="barClass(bar)" :title="barTitle(bar)"></div>
+              </template>
+            </div>
+          </div>
+
+          <div class="rounded-lg p-4 mt-4" :class="cardCls()" x-show="data.bars?.some(b => b.lat)">
+            <div class="text-[10px] uppercase text-gray-400/70 mb-1">latency (min/avg/max)</div>
+            <div class="flex items-end gap-[2px] h-24 border-b border-gray-700">
+              <template x-for="bar in data.bars || []" :key="'l' + bar.t">
+                <div class="flex-1 min-w-0 relative" :style="{ height: latHeight(bar) }">
+                  <div class="absolute bottom-0 left-0 right-0 rounded-t-[1px] bg-sky-500/70" :style="{ height: latBarPct(bar) }" :title="latTitle(bar)"></div>
+                </div>
+              </template>
+            </div>
+            <div class="flex justify-between text-[10px] uppercase mt-1" :class="theme.item_subtitle">
+              <div x-text="data.bars?.length ? timeLabel(data.bars[0].t) : ''"></div>
+              <div x-text="maxLat() ? 'max ' + maxLat() + 'ms' : ''"></div>
+              <div x-text="data.bars?.length ? timeLabel(data.bars[data.bars.length - 1].t) : ''"></div>
+            </div>
+          </div>
+
+          <div class="rounded-lg p-4 mt-4" :class="cardCls()">
+            <div class="text-[10px] uppercase text-gray-400/70 mb-2">recent failures</div>
+            <div x-show="!data.errors || data.errors.length === 0" class="text-sm uppercase" :class="theme.item_subtitle">none recorded</div>
+            <div class="space-y-1 max-h-64 overflow-y-auto">
+              <template x-for="(e, i) in data.errors || []" :key="i">
+                <div class="flex gap-3 text-sm items-baseline">
+                  <div class="text-xs shrink-0 w-32" :class="theme.item_subtitle" x-text="new Date(e.time).toLocaleString()"></div>
+                  <div class="text-red-400/90 truncate" x-text="(e.status_code ? 'HTTP ' + e.status_code + ' · ' : '') + (e.error || 'unreachable')"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <script>
+      function details() {
+        return {
+          bm: null,
+          data: {},
+          theme: {},
+          range: '15m',
+          async init() {
+            const id = new URLSearchParams(location.search).get('id')
+            if (!id) return
+            this.theme = (await (await fetch('/api/settings')).json()).theme
+            // older stored themes lack the heading color — fill from the preset
+            if (!this.theme.heading) {
+              const presets = await (await fetch('/api/themes')).json()
+              const preset = presets[this.theme.name] || presets.default
+              if (preset && preset.heading) this.theme = { ...this.theme, heading: preset.heading }
+            }
+            await this.load(id)
+          },
+          async load(id) {
+            id = id || this.bm.id
+            const res = await fetch('/api/bookmarks/' + id + '/details?range=' + this.range)
+            const json = await res.json()
+            this.bm = json.bookmark
+            this.data = json
+          },
+          cardCls() {
+            return (this.theme.item || 'bg-gray-800').replace(/hover:\S+/g, '').replace('cursor-pointer', '')
+          },
+          statusClass() {
+            return this.bm.reachable === undefined ? 'bg-gray-600' : this.bm.reachable ? 'bg-green-400' : 'bg-red-400'
+          },
+          pct(v) {
+            return v === null || v === undefined ? '—' : Math.round(v * 1000) / 10 + '%'
+          },
+          avgLat() {
+            const lats = (this.data.bars || []).filter(b => b.lat).map(b => b.lat.avg)
+            if (!lats.length) return '—'
+            return Math.round(lats.reduce((a, v) => a + v, 0) / lats.length) + 'ms'
+          },
+          maxLat() {
+            const lats = (this.data.bars || []).filter(b => b.lat && b.lat.max != null).map(b => b.lat.max)
+            return lats.length ? Math.max(...lats) : null
+          },
+          latHeight(bar) {
+            return bar.lat && bar.lat.avg ? Math.max(4, (bar.lat.avg / (this.maxLat() || 1)) * 100) + '%' : '0'
+          },
+          latBarPct(bar) {
+            return '100%'
+          },
+          barClass(bar) {
+            if (bar.up === null || bar.up === undefined) return 'bg-gray-400/60'
+            if (bar.up >= 0.999) return 'bg-green-500/80' + (bar.cnt ? '' : ' opacity-40')
+            if (bar.up > 0.5) return 'bg-amber-500/80' + (bar.cnt ? '' : ' opacity-40')
+            return 'bg-red-500/80' + (bar.cnt ? '' : ' opacity-40')
+          },
+          barTitle(bar) {
+            if (!bar.cnt) return new Date(bar.t).toLocaleString() + ' — no checks (last known: ' + (bar.up >= 0.999 ? 'up' : 'down') + ')'
+            return new Date(bar.t).toLocaleString() + ' — ' + Math.round(bar.up * 100) + '% up (' + bar.cnt + ' checks)'
+          },
+          latTitle(bar) {
+            if (!bar.lat) return new Date(bar.t).toLocaleString() + ' — no latency'
+            return new Date(bar.t).toLocaleString() + ' — min ' + bar.lat.min + 'ms · avg ' + bar.lat.avg + 'ms · max ' + bar.lat.max + 'ms'
+          },
+          timeLabel(t) {
+            return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+          },
+        }
+      }
+    </script>
+  </body>
+</html>
