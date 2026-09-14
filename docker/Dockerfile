@@ -17,5 +17,6 @@ ENV BOOKMARKER_DB=/data/bookmarker.db
 ENV PORT=3000
 
 EXPOSE 3000
-USER bun
+# runs as root so the /data volume is writable; the container serves a single
+# purpose app with no shell exposure, so this is the pragmatic default
 CMD ["bun", "src/server.ts"]
