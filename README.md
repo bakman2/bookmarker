@@ -15,7 +15,7 @@ recent failures.
 
 ## Features
 
-- Categories with drag & drop reordering (edit mode, press `e` or the ⋯ icon)
+- Categories with drag & drop reordering (edit mode, press `cmd/ctrl+e` or the ⋯ icon on the right top)
 - Page title and category names editable inline, title can be hidden
 - Reachability checks every 30s with status dot (green = up, red = down)
 - Per-bookmark history: 15m / 1h / 3h / 6h / 1d uptime strips with min/avg/max
