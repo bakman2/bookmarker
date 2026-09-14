@@ -25,7 +25,7 @@ recent failures.
 Requires [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
 ```bash
-git clone <your-repo-url> bookmarker   # or just copy the project directory
+git clone https://github.com/bakman2/bookmarker.git   # or just copy the project directory
 cd bookmarker
 docker compose up -d --build
 ```
@@ -61,6 +61,10 @@ docker run --rm -v bookmarker-data:/data -v "$PWD":/backup oven/bun \
 Restore by copying the file back into the volume and restarting.
 
 ## Restricting or widening access
+
+By default the app is exposed to your **entire local network on port 3000** —
+any device on the LAN can open `http://<host-ip>:3000` and view and edit your
+bookmarks. Tighten or widen it as follows:
 
 - **Restrict to localhost only** (if you want it private on the host):
 

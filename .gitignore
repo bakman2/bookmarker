@@ -8,3 +8,4 @@ bookmarker.db-wal
 # dependencies
 node_modules/
 .env
+backups/
