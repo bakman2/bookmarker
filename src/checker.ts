@@ -27,7 +27,9 @@ export async function checkBookmark(b: any): Promise<CheckResult | null> {
     }
   } catch (e: any) {
     console.warn(new Date().toISOString(), `check failed [${b.title}] ${b.check_type} ${b.address}:`, e?.message ?? e, e?.cause?.code ?? "");
-    return { id: b.id, reachable: false, latency_ms: null, status_code: null, error: (e?.cause?.code ? e.cause.code + " " : "") + (e?.message ?? String(e)) };
+    const code = e?.cause?.code ?? "";
+    const reason = b.check_type === "tcp" ? "host unreachable" : "unable to access the url";
+    return { id: b.id, reachable: false, latency_ms: null, status_code: null, error: code ? `${reason} (${code})` : reason };
   }
   return null;
 }

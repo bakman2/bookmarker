@@ -411,6 +411,10 @@ function data() {
       sel.addRange(range)
     },
 
+    async moveGroup(group, direction) {
+      await this.api('/api/groups/' + group.id + '/move', 'POST', { direction: direction < 0 ? 'up' : 'down' })
+    },
+
     async deleteGroup(group) {
       if (!this.isNewGroup(group) && !confirm('Delete category "' + group.group + '" and all its bookmarks?')) return
       await this.api('/api/groups/' + group.id, 'DELETE')
@@ -456,7 +460,7 @@ function data() {
         group_id: this.modal.group_id,
         title: this.modal.form.title,
         address: this.modal.form.address,
-        description: this.modal.form.description || null,
+        description: (this.modal.form.description || '').trim().toUpperCase() || null,
         sort: this.modal.sort ?? 0,
         check_type: this.modal.form.check_type,
         is_indicator: !!this.modal.form.is_indicator,

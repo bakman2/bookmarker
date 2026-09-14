@@ -179,7 +179,7 @@ Bun.serve({
 
       if (resource === "groups") {
         if (method === "GET") return json(q.groups.all());
-        if (method === "POST") {
+        if (method === "POST" && !sub) {
           const b = await body(req);
           const r = q.insertGroup.run(b.name ?? "New group", b.sort ?? 0);
           broadcast();
@@ -191,6 +191,20 @@ Bun.serve({
           broadcast();
           return json({ ok: true });
         }
+        if (sub === "move" && method === "POST" && id) {
+          const { direction } = await body(req);
+          const all = q.groups.all() as any[];
+          const idx = all.findIndex((g) => g.id === id);
+          const j = idx + (direction === "up" ? -1 : 1);
+          if (idx !== -1 && j >= 0 && j < all.length) {
+            // reassign all sorts by current position, swapping the two entries
+            [all[idx], all[j]] = [all[j], all[idx]];
+            all.forEach((g, i) => q.updateGroup.run(g.name, i, g.id));
+            broadcast();
+          }
+          return json({ ok: true });
+        }
+
         if (method === "DELETE" && id) {
           q.deleteGroup.run(id);
           broadcast();

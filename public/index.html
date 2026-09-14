@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script src="/app.js?v=38"></script>
+    <script src="/app.js?v=40"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -110,6 +110,20 @@
               @keydown.enter.prevent="$event.target.blur()"
             ></div>
             <div x-show="editing" class="flex gap-1 shrink-0 items-center">
+              <button
+                @click="moveGroup(group, -1)"
+                title="move category up"
+                class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-gray-500/40 rounded"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              </button>
+              <button
+                @click="moveGroup(group, 1)"
+                title="move category down"
+                class="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-gray-500/40 rounded"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
               <button
                 @click="addBookmark(group)"
                 title="add bookmark"
@@ -219,7 +233,7 @@
           </label>
           <label class="block">
             <span class="text-xs uppercase text-gray-400">Subtitle</span>
-            <input x-model="modal.form.description" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1" placeholder="shown instead of hostname">
+            <input x-model="modal.form.description" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1 uppercase" placeholder="shown instead of hostname">
           </label>
           <div class="grid grid-cols-2 gap-3">
             <label class="block">
