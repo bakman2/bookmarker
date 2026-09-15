@@ -53,6 +53,11 @@ docker compose logs -f bookmarker   # follow logs
 docker compose stop                 # stop (data is kept)
 docker compose down                 # remove container (data is kept)
 docker compose down -v              # ⚠️ remove container AND all data
+
+# update from repo
+
+git pull 
+sudo docker compose up -d --build
 ```
 
 ### Backup
