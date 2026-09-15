@@ -14,6 +14,7 @@ function data() {
     dragTargetId: null,
     dragAppend: false,
     themes: {},
+    lan: { open: false, busy: false, progress: 0, total: 1, hosts: [], host: null, ports: [], portsBusy: false, range: "", group: null },
 
     init() {
       this.initPointerHandlers()
@@ -59,8 +60,9 @@ function data() {
 
       this.ws.onmessage = (event) => {
         const input = JSON.parse(event.data)
-        this.bookmarks = input.bookmarks || []
+        if (input.bookmarks !== undefined) this.bookmarks = input.bookmarks
         if (input.theme) { this.theme = input.theme; this.normalizeTheme() }
+        if (input.scan) this.onScanEvent(input.scan)
       }
 
       this.ws.onclose = () => {
@@ -343,6 +345,19 @@ function data() {
       this.normalizeTheme()
     },
 
+    // theme card styling without hover/cursor (for static elements like the
+    // details chevron strip)
+    themeItemStatic() {
+      // strip the static background classes — the chevron is transparent so
+      // the card's background (and its hover variant) shows through it
+      return (this.theme.item || 'text-white/80 bg-gray-600')
+        .replace(/(^|\s)(bg|border|shadow|ring)-\S+/g, '$1') // card shows through
+        .replace(/(^|\s)(border|shadow|ring)(?=\s|$)/g, '$1')  // bare variants too
+        .replace(/hover:\S+/g, '')                            // no hover state
+        .replace('cursor-pointer', '')
+        .trim()
+    },
+
     // older stored themes lack the heading color — fill it from the preset
     normalizeTheme() {
       if (this.theme.heading) return
@@ -393,6 +408,58 @@ function data() {
       await this.api('/api/groups/' + group.id, 'PUT', { name, sort: group.sort ?? 0 })
     },
 
+    // ---- lan discovery ----
+    onScanEvent(e) {
+      if (e.phase === "hosts") { this.lan.busy = true; this.lan.progress = e.done; this.lan.total = e.total }
+      else if (e.phase === "hosts-done") { this.lan.hosts = e.hosts; this.lan.busy = false }
+      else if (e.phase === "ports") { this.lan.portsBusy = true; this.lan.progress = e.done; this.lan.total = e.total }
+      else if (e.phase === "ports-done") { this.lan.ports = e.ports; this.lan.portsBusy = false }
+    },
+
+    async openDiscover() {
+      this.lan.open = true
+      this.lan.busy = false; this.lan.portsBusy = false
+      const info = await this.api("/api/lan/info")
+      this.lan.range = info.suggestion
+      // cached scan results: pick directly, or scan again
+      if (info.lastHosts?.length) {
+        this.lan.hosts = info.lastHosts
+        if (info.lastPortsHost) {
+          this.lan.host = this.lan.hosts.find((h) => h.ip === info.lastPortsHost) || this.lan.hosts[0]
+          this.lan.ports = info.lastPorts || []
+        }
+      }
+    },
+
+    async startScan() {
+      if (!this.lan.range || this.lan.busy) return
+      this.lan.hosts = []; this.lan.ports = []; this.lan.host = null
+      this.lan.busy = true; this.lan.progress = 0; this.lan.total = 254 * 19
+      await this.api("/api/lan/scan", "POST", { range: this.lan.range })
+    },
+
+    async scanHostPorts() {
+      if (!this.lan.host || this.lan.portsBusy) return
+      this.lan.ports = []
+      this.lan.portsBusy = true; this.lan.progress = 0; this.lan.total = 9999
+      await this.api("/api/lan/ports", "POST", { host: this.lan.host.ip })
+    },
+
+    addDiscovered(port) {
+      const host = this.lan.host
+      const group = this.bookmarks[0]
+      const name = host.hostname || host.ip
+      // port title probe first; else the host's discovery title ("device - Main
+      // Menu" style), trimmed to the device part
+      const hostTitle = (host.title || '').split(' - ')[0].trim()
+      const title = port.title || hostTitle || name
+      const subtitle = host.hostname || host.ip
+      // prefer the dns name over the raw ip in the address, for every port
+      const address = port.url.replace(host.ip, name)
+      this.lan.open = false
+      this.addBookmark(group, { title, subtitle, address })
+    },
+
     async addGroup() {
       const sort = this.bookmarks.length ? Math.max(...this.bookmarks.map((g) => g.sort ?? 0)) + 1 : 0
       const r = await this.api('/api/groups', 'POST', { name: 'New category', sort })
@@ -440,14 +507,20 @@ function data() {
       }
     },
 
-    addBookmark(group) {
+    addBookmark(group, prefill = {}) {
       this.modal = {
         open: true,
         creating: true,
         credEdit: null,
         id: null,
         group_id: group.id,
-        form: { title: 'New bookmark', address: 'https://', description: '', check_type: 'none', is_indicator: false },
+        form: {
+          title: prefill.title || 'New bookmark',
+          address: prefill.address || 'https://',
+          description: prefill.subtitle || '',
+          check_type: 'none',
+          is_indicator: false,
+        },
       }
     },
 

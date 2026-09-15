@@ -1,6 +1,8 @@
 import { q, db } from "./db";
 import { encryptSecret } from "./crypto";
 import { checkBookmark } from "./checker";
+import os from "node:os";
+import dns from "node:dns/promises";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const CHECK_INTERVAL = 30_000;
@@ -21,12 +23,15 @@ const THEMES: Record<string, any> = {
     item_subtitle: "text-slate-300/80",
     gap: "gap-2",
   },
-  midnight: {
-    background: "bg-blue-900",
-    heading: "text-blue-200",
-    item: "text-blue-50 bg-blue-800/70 hover:bg-blue-700 hover:shadow cursor-pointer rounded",
-    item_subtitle: "text-blue-200/90",
-    gap: "gap-3",
+  // Catppuccin Frappé (https://github.com/catppuccin/catppuccin)
+  // base #303446 · mantle #292c3c · surface0 #292c3c ... surface1 #414559 ·
+  // surface2 #6268a1 · text #c6d0f5 · subtext0 #a5adce
+  frappe: {
+    background: "bg-[#303446]",
+    heading: "text-[#c6d0f5]",
+    item: "text-[#c6d0f5] bg-[#414559] hover:bg-[#6268a1] hover:shadow cursor-pointer rounded",
+    item_subtitle: "text-[#a5adce]",
+    gap: "gap-2",
   },
   paper: {
     background: "bg-stone-100",
@@ -35,12 +40,15 @@ const THEMES: Record<string, any> = {
     item_subtitle: "text-gray-600",
     gap: "gap-2",
   },
-  monokai: {
-    background: "bg-stone-800",
-    heading: "text-yellow-200",
-    item: "text-yellow-100 bg-stone-700 hover:bg-stone-600 hover:shadow cursor-pointer rounded",
-    item_subtitle: "text-stone-300",
-    gap: "gap-3",
+  // Catppuccin Mocha (https://github.com/catppuccin/catppuccin)
+  // base #1e1e2e · surface0 #313244 · surface1 #45475a · surface2 #585b70 ·
+  // text #cdd6f4 · subtext0 #a6adc8
+  mocha: {
+    background: "bg-[#1e1e2e]",
+    heading: "text-[#cdd6f4]",
+    item: "text-[#cdd6f4] bg-[#313244] hover:bg-[#45475a] hover:shadow cursor-pointer rounded",
+    item_subtitle: "text-[#a6adc8]",
+    gap: "gap-2",
   },
 };
 
@@ -112,6 +120,126 @@ async function runChecks() {
 setInterval(runChecks, CHECK_INTERVAL);
 setTimeout(runChecks, 500);
 
+// ---- lan discovery (tcp-based host + port scanning) ----
+let lastScanHosts: any[] = [];
+let lastPortsHost = "";
+let lastScanPorts: any[] = [];
+const DISCOVERY_PORTS = [80, 443, 8080, 8443, 22, 3000, 5000, 8006, 8123, 32400, 6789, 7878, 8989, 9117, 9090, 1880, 1883, 8181, 9000];
+
+function sendScanEvent(e: any) {
+  const msg = JSON.stringify({ scan: e });
+  for (const c of clients) { try { c.send(msg); } catch {} }
+}
+
+function probe(host: string, port: number, timeoutMs: number): Promise<"open" | "closed" | "filtered"> {
+  return new Promise((resolve) => {
+    let done = false;
+    let socket: any = null;
+    const finish = (r: any) => { if (done) return; done = true; clearTimeout(t); try { socket?.end(); } catch {}; resolve(r); };
+    const t = setTimeout(() => finish("filtered"), timeoutMs);
+    Bun.connect({ hostname: host, port, socket: { data() {}, error() {}, close() {} } })
+      .then((s) => { if (done) { try { s.end(); } catch {} return; } socket = s; finish("open"); })
+      .catch((e: any) => finish(e?.code === "ECONNREFUSED" ? "closed" : "filtered"));
+  });
+}
+
+function parseRange(range: string): string[] {
+  if (!range) return [];
+  range = range.trim().replace(/^https?:\/\//i, "");
+  let base = range, prefix = 24;
+  const m = range.match(/^(.+?)\/(\d{1,2})$/);
+  if (m) { base = m[1]; prefix = Number(m[2]); }
+  const parts = base.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((p) => isNaN(p) || p < 0 || p > 255)) return [];
+  const ipToInt = (p: number[]) => ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
+  const intToIp = (n: number) => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+  if (prefix === 32) return [intToIp(ipToInt(parts))];
+  const size = 2 ** (32 - prefix);
+  if (size > 4096) return [];
+  const networkStart = Math.floor(ipToInt(parts) / size) * size;
+  const out: string[] = [];
+  const last = prefix <= 30 ? size - 1 : size;
+  for (let i = 1; i < last; i++) out.push(intToIp(networkStart + i));
+  return out;
+}
+
+async function scanLan(hosts: string[]) {
+  const alive: { ip: string; port: number }[] = [];
+  const total = hosts.length * DISCOVERY_PORTS.length;
+  let done = 0, lastSent = 0;
+  const report = () => { const now = Date.now(); if (now - lastSent > 150 || done === total) { lastSent = now; sendScanEvent({ phase: "hosts", done, total }); } };
+  let idx = 0;
+  const workers = Array.from({ length: 300 }, async () => {
+    while (true) {
+      const i = idx++;
+      if (i >= total) break;
+      const host = hosts[Math.floor(i / DISCOVERY_PORTS.length)];
+      const port = DISCOVERY_PORTS[i % DISCOVERY_PORTS.length];
+      if ((await probe(host, port, 400)) === "open" && !alive.find((a) => a.ip === host)) alive.push({ ip: host, port });
+      done++; report();
+    }
+  });
+  await Promise.all(workers);
+  const withTitles = await Promise.all(alive.map(async (h) => {
+    const scheme = h.port === 443 || h.port === 8443 ? "https" : "http";
+    const url = `${scheme}://${h.ip}:${h.port}`;
+    let title = "";
+    let hostname = "";
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(1500), redirect: "follow", tls: { rejectUnauthorized: false } });
+      title = ((await res.text()).slice(0, 65536).match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim().slice(0, 60);
+    } catch {}
+    try {
+      hostname = (await dns.reverse(h.ip))[0] ?? "";
+    } catch {}
+    return { ...h, title, hostname, url };
+  }));
+  lastScanHosts = withTitles;
+  sendScanEvent({ phase: "hosts-done", hosts: withTitles });
+}
+
+async function scanPorts(host: string) {
+  const open: { port: number; title: string; url: string }[] = [];
+  const total = 9999;
+  // progress spans both passes (pass 1 + retry) so the bar never exceeds 100%
+  let scanned = 0, lastSent = 0;
+  const report = () => { const now = Date.now(); if (now - lastSent > 150 || scanned === 2 * total) { lastSent = now; sendScanEvent({ phase: "ports", done: scanned, total: 2 * total }); } };
+  // moderate concurrency + retry: hammering one host with hundreds of
+  // simultaneous SYNs overflows its listen backlog and drops ports randomly
+  const scanPortsPass = async (ports: number[], concurrency: number, timeoutMs: number): Promise<number[]> => {
+    const found: number[] = [];
+    let i = 0;
+    const workers = Array.from({ length: concurrency }, async () => {
+      while (true) {
+        const k = i++;
+        if (k >= ports.length) break;
+        if ((await probe(host, ports[k], timeoutMs)) === "open") found.push(ports[k]);
+        scanned++; report();
+      }
+    });
+    await Promise.all(workers);
+    return found.sort((a, b) => a - b);
+  };
+  const all = Array.from({ length: total }, (_, k) => k + 1);
+  const pass1 = await scanPortsPass(all, 250, 300);
+  // second chance for ports that timed out (backlog drops, slow hosts)
+  const remaining = all.filter((p) => !pass1.includes(p));
+  const pass2 = await scanPortsPass(remaining, 200, 500);
+  for (const p of [...pass1, ...pass2]) open.push({ port: p, title: "", url: "" });
+  open.sort((a, b) => a.port - b.port);
+  await Promise.all(open.map(async (o) => {
+    const scheme = o.port === 443 || o.port === 8443 ? "https" : "http";
+    o.url = `${scheme}://${host}:${o.port}`;
+    try {
+      const res = await fetch(o.url, { signal: AbortSignal.timeout(1500), redirect: "follow", tls: { rejectUnauthorized: false } });
+      o.title = ((await res.text()).slice(0, 65536).match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? "").trim().slice(0, 60);
+    } catch {}
+  }));
+  lastPortsHost = host;
+  lastScanPorts = open;
+  sendScanEvent({ phase: "ports-done", ports: open });
+}
+
 // ---- history maintenance: roll up full days, prune old data ----
 const DAY_MS = 86_400_000;
 function maintainHistory() {
@@ -164,6 +292,36 @@ Bun.serve({
       const method = req.method;
 
       if (resource === "themes" && method === "GET") return json(THEMES);
+
+      if (resource === "lan") {
+        if (idStr === "info" && method === "GET") {
+          // include the cached scan results so the ui can offer them directly
+          try {
+            for (const list of Object.values(os.networkInterfaces())) {
+              for (const n of list as any[]) {
+                if (n.family === "IPv4" && !n.internal) {
+                  const [a, b, c] = n.address.split(".").map(Number);
+                  return json({ suggestion: `${a}.${b}.${c}.0/24` });
+                }
+              }
+            }
+          } catch {}
+          return json({ suggestion: "", lastHosts: lastScanHosts, lastPortsHost, lastPorts: lastScanPorts });
+        }
+        if (idStr === "scan" && method === "POST") {
+          const { range } = await body(req);
+          const hosts = parseRange(range ?? "");
+          if (!hosts.length) return json({ error: "invalid range" }, 400);
+          scanLan(hosts);
+          return json({ started: true, count: hosts.length });
+        }
+        if (idStr === "ports" && method === "POST") {
+          const { host } = await body(req);
+          if (!host || !/^[a-z0-9.\-]+$/i.test(host)) return json({ error: "invalid host" }, 400);
+          scanPorts(host);
+          return json({ started: true });
+        }
+      }
 
       if (resource === "settings" && method === "GET") return json({ theme });
 
