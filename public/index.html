@@ -10,6 +10,13 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
+    <script>
+      // extra xs breakpoint for the 2-col card grid on narrow phones
+      if (window.$vs) window.$vs.breakpoints = { ...window.$vs.breakpoints, xs: 480 };
+      document.addEventListener("DOMContentLoaded", () => {
+        if (window.$vs) window.$vs.breakpoints = { ...window.$vs.breakpoints, xs: 480 };
+      });
+    </script>
     <script src="/app.js?v=41"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
@@ -142,7 +149,7 @@
             </div>
           </div>
           <div
-            class="mb-2 md:mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+            class="mb-2 md:mb-8 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
             :class="[theme.gap, editing ? 'min-h-16' : '']"
             :style="editing && dragId !== null && dragGroup === group.id ? 'outline: 1px solid rgba(255,255,255,0.35); outline-offset: 4px;' : (editing && dragId !== null ? 'outline: 1px dashed rgba(255,255,255,0.35); outline-offset: 4px;' : '')"
             :data-gid="group.id"
