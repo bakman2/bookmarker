@@ -35,6 +35,13 @@ cd bookmarker
 docker compose up -d --build
 ```
 
+## Update
+
+```bash
+git pull 
+sudo docker compose up -d --build
+```
+
 The dashboard is then available at **http://localhost:3000**, and it listens on
 **all interfaces by default** — so it is also reachable from other machines on
 your network at `http://<host-ip>:3000` (e.g. `http://192.168.1.10:3000`).
@@ -54,11 +61,6 @@ docker compose logs -f bookmarker   # follow logs
 docker compose stop                 # stop (data is kept)
 docker compose down                 # remove container (data is kept)
 docker compose down -v              # ⚠️ remove container AND all data
-
-# update from repo
-
-git pull 
-sudo docker compose up -d --build
 ```
 
 ### Backup
