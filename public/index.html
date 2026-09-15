@@ -10,12 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script>
-      // "base" is a placeholder: vimesh gives the first breakpoint no min-width,
-      // so it must never be one we use in classes
-      window.$vs.breakpoints = { base: 0, xs: 480, sm: 640, md: 768, lg: 1024, xl: 1280, "2xl": 1536 };
-    </script>
-    <script src="/app.js?v=42"></script>
+    <script src="/app.js?v=45"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -45,6 +40,10 @@
       .group {
         position: relative;
       }
+      /* explicit 1280px cap: vimesh's max-w-7xl is only 72rem (1152px) */
+      .page-container {
+        max-width: 80rem;
+      }
       .card-text {
         min-width: 0;
         white-space: nowrap;
@@ -67,7 +66,7 @@
     </style>
   </head>
   <body :class="theme.background" x-data="data()">
-    <div x-cloak class="max-w-7xl mx-auto px-2 md:px-12 md:pt-10 md:pb-2">
+    <div x-cloak class="page-container mx-auto px-2 md:pt-10 md:pb-2">
       <div class="flex items-center gap-2 mt-2" x-show="editing || theme?.title !== 'hide'">
         <div
           class="uppercase text-2xl md:text-4xl flex-1"
@@ -147,7 +146,7 @@
             </div>
           </div>
           <div
-            class="mb-2 md:mb-8 grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+            class="mb-2 md:mb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
             :class="[theme.gap, editing ? 'min-h-16' : '']"
             :style="editing && dragId !== null && dragGroup === group.id ? 'outline: 1px solid rgba(255,255,255,0.35); outline-offset: 4px;' : (editing && dragId !== null ? 'outline: 1px dashed rgba(255,255,255,0.35); outline-offset: 4px;' : '')"
             :data-gid="group.id"
