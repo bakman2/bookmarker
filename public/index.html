@@ -170,12 +170,6 @@
                   class="w-1 h-full rounded-full bg-gray-700"
                   :class="bookmark.reachable === undefined ? '' : (bookmark.reachable ? 'bg-green-400' : 'bg-red-400 animate-pulse')"
                 ></div>
-                <img
-                  x-show="bookmark.icon"
-                  :src="bookmark.icon ? 'data:' + (bookmark.icon_mime || 'image/x-icon') + ';base64,' + bookmark.icon : ''"
-                  class="h-5 w-5 self-center rounded-sm shrink-0"
-                  alt=""
-                >
                 <div class="w-full min-w-0">
                   <div
                     x-text="bookmark.title"

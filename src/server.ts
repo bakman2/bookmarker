@@ -80,8 +80,6 @@ function buildPayload() {
         description: b.description,
         sort: b.sort,
         check_type: b.check_type,
-        icon: b.icon || undefined,
-        icon_mime: b.icon_mime || undefined,
         is_indicator: !!b.is_indicator,
         reachable: b.reachable === null ? undefined : !!b.reachable,
       })),
@@ -113,57 +111,6 @@ async function runChecks() {
 }
 setInterval(runChecks, CHECK_INTERVAL);
 setTimeout(runChecks, 500);
-
-// ---- favicon fetching ----
-const FAVICON_MAX_BYTES = 100_000;
-async function fetchFavicon(address: string): Promise<{ icon: string; mime: string } | null> {
-  if (!/^https?:\/\//i.test(address)) return null;
-  const origin = new URL(address).origin;
-  const candidates: string[] = [origin + "/favicon.ico"];
-  try {
-    const res = await fetch(origin, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(5000),
-      tls: { rejectUnauthorized: false },
-    });
-    const html = (await res.text()).slice(0, 65536);
-    const links = [...html.matchAll(/<link[^>]+rel=["'][^"']*icon[^"']*["'][^>]*>/gi)];
-    for (const m of links) {
-      const href = m[0].match(/href=["']([^"']+)["']/i)?.[1];
-      if (href && !/\.ico($|[?#])/i.test(href)) candidates.unshift(new URL(href, origin).href);
-    }
-  } catch {}
-  for (const url of candidates.slice(0, 4)) {
-    try {
-      const res = await fetch(url, {
-        redirect: "follow",
-        signal: AbortSignal.timeout(5000),
-        tls: { rejectUnauthorized: false },
-      });
-      if (!res.headers.get("content-type")?.includes("image")) continue;
-      const buf = new Uint8Array(await res.arrayBuffer());
-      if (buf.length === 0 || buf.length > FAVICON_MAX_BYTES) continue;
-      try {
-        // normalize to 32x32 png when decodable (not legacy .ico)
-        const png = await new Bun.Image(buf).resize(32, 32).png().bytes();
-        return { icon: Buffer.from(png).toString("base64"), mime: "image/png" };
-      } catch {
-        // .ico or undecodable: store raw, browsers render it natively
-        return { icon: Buffer.from(buf).toString("base64"), mime: res.headers.get("content-type")?.split(";")[0] || "image/x-icon" };
-      }
-    } catch {}
-  }
-  return null;
-}
-
-async function refreshIcon(b: any) {
-  if (!/^https?:\/\//i.test(b.address)) return;
-  const icon = await fetchFavicon(b.address);
-  if (icon) {
-    q.setIcon.run(icon.icon, icon.mime, b.id);
-    broadcast();
-  }
-}
 
 // ---- history maintenance: roll up full days, prune old data ----
 const DAY_MS = 86_400_000;
@@ -236,8 +183,6 @@ Bun.serve({
           const b = await body(req);
           const r = q.insertGroup.run(b.name ?? "New group", b.sort ?? 0);
           broadcast();
-          const created = q.bookmarkById.get(Number(r.lastInsertRowid)) as any;
-          if (created) refreshIcon(created);
           return json({ id: r.lastInsertRowid }, 201);
         }
         if (method === "PUT" && id) {
@@ -410,21 +355,15 @@ Bun.serve({
             b.sort ?? 0, b.check_type ?? "none", b.is_indicator ? 1 : 0, b.enabled === false ? 0 : 1
           );
           broadcast();
-          const created = q.bookmarkById.get(Number(r.lastInsertRowid)) as any;
-          if (created) refreshIcon(created);
           return json({ id: r.lastInsertRowid }, 201);
         }
         if (method === "PUT" && id) {
           const b = await body(req);
-          const before = q.bookmarkById.get(id) as any;
           q.updateBookmark.run(
             b.group_id, b.title, b.address, b.description ?? null, b.sort ?? 0,
             b.check_type ?? "none", b.is_indicator ? 1 : 0, b.enabled === false ? 0 : 1, id
           );
-          if (before && before.address !== b.address) q.setIcon.run(null, null, id);
           broadcast();
-          const updated = q.bookmarkById.get(id) as any;
-          if (updated && (before?.address !== b.address || !updated.icon)) refreshIcon(updated);
           return json({ ok: true });
         }
         if (method === "DELETE" && id) {
