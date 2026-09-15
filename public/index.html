@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script src="/app.js?v=45"></script>
+    <script src="/app.js?v=47"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -21,9 +21,6 @@
       }
       [contenteditable]:focus {
         outline: 1px dashed rgba(255, 255, 255, 0.4);
-      }
-      html {
-        scrollbar-gutter: stable;
       }
       .drag-ghost {
         border: 1px dashed rgba(255, 255, 255, 0.5) !important;
@@ -40,9 +37,10 @@
       .group {
         position: relative;
       }
-      /* explicit 1280px cap: vimesh's max-w-7xl is only 72rem (1152px) */
+      /* explicit cap: vimesh's max-w-7xl is only 72rem (1152px). the cap
+         includes the md:px-12 padding so the grid content itself reaches 1280px */
       .page-container {
-        max-width: 80rem;
+        max-width: 86rem;
       }
       .card-text {
         min-width: 0;
@@ -66,7 +64,7 @@
     </style>
   </head>
   <body :class="theme.background" x-data="data()">
-    <div x-cloak class="page-container mx-auto px-2 md:pt-10 md:pb-2">
+    <div x-cloak class="page-container mx-auto px-2 md:px-12 md:pt-10 md:pb-2">
       <div class="flex items-center gap-2 mt-2" x-show="editing || theme?.title !== 'hide'">
         <div
           class="uppercase text-2xl md:text-4xl flex-1"

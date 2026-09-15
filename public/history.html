@@ -10,6 +10,10 @@
     <style>
       body { font-family: 'Barlow', sans-serif !important; }
       [x-cloak] { display: none !important; }
+      /* same cap as the main page (vimesh max-w-* are non-standard) */
+      .page-container {
+        max-width: 86rem;
+      }
       .range-btn {
         border: 1px solid currentColor;
         opacity: 0.6;
@@ -17,7 +21,7 @@
     </style>
   </head>
   <body class="min-h-screen" :class="theme.background" x-data="details()">
-    <div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="page-container mx-auto px-2 py-8 md:px-12 md:pt-10 md:pb-2">
       <a href="/" class="text-xs uppercase" :class="theme.item_subtitle || 'text-gray-500'" style="cursor:pointer">← back to bookmarks</a>
 
       <template x-if="bm">
