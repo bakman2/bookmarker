@@ -1,8 +1,8 @@
 # Bookmarker
 
-<img width="1056" height="732" alt="image" src="https://github.com/user-attachments/assets/af3af5ba-fc3e-414f-9de2-66882fd67e29" />
+<img width="1049" height="1056" alt="SCR-20260915-size" src="https://github.com/user-attachments/assets/9ef3f6a8-5303-4346-900a-00907bec1090" />
 
-<img width="993" height="736" alt="image" src="https://github.com/user-attachments/assets/d084075c-ef6c-4c82-b894-0f2fb5090bba" />
+<img width="1048" height="963" alt="SCR-20260915-sjdl" src="https://github.com/user-attachments/assets/cd636da0-30aa-43de-a49d-e846d8d7c00c" />
 
 A self-hosted bookmark dashboard with live reachability monitoring.
 
@@ -23,6 +23,7 @@ recent failures.
 - Raw checks are kept 7 days, daily rollups 365 days (fully automatic)
 - 5 color themes, switchable in edit mode (default, slate, midnight, paper, monokai)
 - Live updates across all connected browsers (WebSocket)
+- Discovery mode to scan for servers and ports on the local network for easy adding of bookmarks
 
 ## Install with Docker
 
