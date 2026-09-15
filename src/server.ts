@@ -1,5 +1,4 @@
 import { q, db } from "./db";
-import { encryptSecret } from "./crypto";
 import { checkBookmark } from "./checker";
 import os from "node:os";
 import dns from "node:dns/promises";
