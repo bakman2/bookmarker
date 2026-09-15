@@ -55,6 +55,16 @@ CREATE TABLE IF NOT EXISTS settings (
 // migrations for existing databases: bookmarks.status_code/error are legacy
 // columns from earlier versions (live in the checks table now); leave any
 // existing databases untouched, fresh ones never get them.
+for (const [col, def] of [
+  ["icon", "TEXT"],
+  ["icon_mime", "TEXT"],
+]) {
+  try {
+    db.exec(`ALTER TABLE bookmarks ADD COLUMN ${col} ${def};`);
+  } catch {
+    // column already exists
+  }
+}
 
 export const q = {
   groups: db.query("SELECT * FROM groups ORDER BY sort, id"),
@@ -73,6 +83,7 @@ export const q = {
   ),
   moveBookmark: db.query("UPDATE bookmarks SET group_id = ?, sort = ? WHERE id = ?"),
   setReachable: db.query("UPDATE bookmarks SET reachable = ? WHERE id = ?"),
+  setIcon: db.query("UPDATE bookmarks SET icon = ?, icon_mime = ? WHERE id = ?"),
   deleteBookmark: db.query("DELETE FROM bookmarks WHERE id = ?"),
   insertCheck: db.query("INSERT INTO checks (bookmark_id, time, reachable, latency_ms, status_code, error) VALUES (?, ?, ?, ?, ?, ?)"),
   checksRange: db.query("SELECT time, reachable, latency_ms, status_code, error FROM checks WHERE bookmark_id = ? AND time >= ? AND time <= ? ORDER BY time"),

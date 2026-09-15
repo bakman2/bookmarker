@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script src="/app.js?v=40"></script>
+    <script src="/app.js?v=41"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -62,7 +62,7 @@
     </style>
   </head>
   <body :class="theme.background" x-data="data()">
-    <div x-cloak class="max-w-5xl mx-auto px-2 md:px-12 md:pt-10 md:pb-2">
+    <div x-cloak class="max-w-7xl mx-auto px-2 md:px-12 md:pt-10 md:pb-2">
       <div class="flex items-center gap-2 mt-2" x-show="editing || theme?.title !== 'hide'">
         <div
           class="uppercase text-2xl md:text-4xl flex-1"
@@ -170,6 +170,12 @@
                   class="w-1 h-full rounded-full bg-gray-700"
                   :class="bookmark.reachable === undefined ? '' : (bookmark.reachable ? 'bg-green-400' : 'bg-red-400 animate-pulse')"
                 ></div>
+                <img
+                  x-show="bookmark.icon"
+                  :src="bookmark.icon ? 'data:' + (bookmark.icon_mime || 'image/x-icon') + ';base64,' + bookmark.icon : ''"
+                  class="h-5 w-5 self-center rounded-sm shrink-0"
+                  alt=""
+                >
                 <div class="w-full min-w-0">
                   <div
                     x-text="bookmark.title"
