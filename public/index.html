@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script src="/app.js?v=58"></script>
+    <script src="/app.js?v=59"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -68,7 +68,7 @@
       <div class="flex items-center gap-2 mt-2" x-show="editing || theme?.title !== 'hide'">
         <div
           class="uppercase text-2xl md:text-4xl flex-1"
-          :class="[theme.heading, theme?.title !== 'hide' ? 'mb-2 md:mb-4' : '', dragId !== null ? 'pointer-events-none cursor-default' : '']"
+          :class="[theme.heading, theme?.title !== 'hide' ? 'mb-2 md:mb-4' : '', dragId !== null ? 'pointer-events-none cursor-default' : '', editing ? 'cursor-text' : 'cursor-default']"
           x-text="theme.title_text"
           x-show="theme?.title !== 'hide'"
           :contenteditable="editing"
@@ -105,9 +105,8 @@
               x-text="group.group"
               :data-group-title="group.id"
               class="uppercase w-full"
-              :class="theme.heading"
+              :class="[theme.heading, dragId !== null ? 'pointer-events-none cursor-default' : '', editing ? 'cursor-text' : 'cursor-default']"
               :contenteditable="editing"
-              :class="dragId !== null ? 'pointer-events-none cursor-default' : ''"
               @focusout="renameGroup($event, group)"
               @keydown.enter.prevent="$event.target.blur()"
             ></div>
@@ -294,14 +293,20 @@
         <div class="uppercase text-lg mb-4" x-text="modal.creating ? 'New bookmark' : 'Edit bookmark'"></div>
 
         <div class="space-y-3">
-          <label class="block">
-            <span class="text-xs uppercase text-gray-400">Category</span>
-            <select x-model="modal.group_id" class="w-full bg-gray-700 rounded px-3 py-2 mt-1">
-              <template x-for="g in bookmarks" :key="g.id">
-                <option :value="g.id" x-text="g.group" :selected="modal.group_id == g.id"></option>
-              </template>
-            </select>
-          </label>
+            <div class="block">
+              <span class="text-xs uppercase text-gray-400">Category</span>
+            <div class="relative mt-1" @click.outside="modal.dd.cat = false">
+              <button type="button" @click="modal.dd.cat = !modal.dd.cat" class="w-full bg-gray-700 rounded px-3 py-2 flex justify-between items-center text-left">
+                <span class="uppercase" x-text="(bookmarks.find(g => g.id == modal.group_id)?.group || '').toUpperCase()"></span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <div x-show="modal.dd.cat" class="absolute z-10 mt-1 w-full bg-gray-700 rounded shadow-lg max-h-60 overflow-y-auto">
+                <template x-for="g in bookmarks" :key="g.id">
+                  <div @click.stop="modal.group_id = g.id; modal.dd.cat = false" class="px-4 py-2.5 uppercase cursor-pointer hover:bg-gray-600" :class="modal.group_id == g.id ? 'text-gray-100' : 'text-gray-400'" x-text="g.group"></div>
+                </template>
+              </div>
+            </div>
+          </div>
           <label class="block">
             <span class="text-xs uppercase text-gray-400">Title</span>
             <input x-model="modal.form.title" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1 uppercase">
@@ -315,14 +320,20 @@
             <input x-model="modal.form.description" class="w-full bg-gray-700 rounded px-2 py-1.5 mt-1 uppercase" placeholder="shown instead of hostname">
           </label>
           <div class="grid grid-cols-2 gap-3">
-            <label class="block">
+            <div class="block">
               <span class="text-xs uppercase text-gray-400">Reachability check</span>
-              <select x-model="modal.form.check_type" class="w-full bg-gray-700 rounded px-3 py-2 mt-1">
-                <option value="none">none</option>
-                <option value="http">http</option>
-                <option value="tcp">tcp</option>
-              </select>
-            </label>
+              <div class="relative mt-1" @click.outside="modal.dd.check = false">
+                <button type="button" @click="modal.dd.check = !modal.dd.check" class="w-full bg-gray-700 rounded px-3 py-2 flex justify-between items-center text-left">
+                  <span class="uppercase" x-text="modal.form.check_type"></span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div x-show="modal.dd.check" class="absolute z-10 mt-1 w-full bg-gray-700 rounded shadow-lg">
+                  <template x-for="t in ['none', 'http', 'tcp']" :key="t">
+                    <div @click.stop="modal.form.check_type = t; modal.dd.check = false" class="px-4 py-2.5 uppercase cursor-pointer hover:bg-gray-600" :class="modal.form.check_type === t ? 'text-gray-100' : 'text-gray-400'" x-text="t"></div>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
           <label class="flex items-center gap-2">
             <input type="checkbox" x-model="modal.form.is_indicator">
@@ -351,7 +362,7 @@
         x-show="editing"
         @change="applyTheme($event.target.value)"
         title="switch theme"
-        class="text-xs uppercase bg-gray-800/90 text-gray-300 rounded px-1.5 py-1 outline-none border border-gray-600"
+        class="text-xs uppercase bg-gray-800/90 text-gray-300 rounded px-1.5 py-2 outline-none border border-gray-600"
       >
         <option value="" disabled :selected="!theme.name">theme</option>
         <template x-for="(t, name) in themes" :key="name">
