@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
     <script src="/js/vimesh.style.min.js"></script>
-    <script src="/app.js?v=53"></script>
+    <script src="/app.js?v=58"></script>
     <script src="/js/alpinejs.min.js" defer></script>
     <style>
       body {
@@ -41,9 +41,6 @@
          includes the md:px-12 padding so the grid content itself reaches 1280px */
       .page-container {
         max-width: 86rem;
-      }
-      select option {
-        padding: 8px 10px;
       }
       .card-text {
         min-width: 0;
@@ -301,7 +298,7 @@
             <span class="text-xs uppercase text-gray-400">Category</span>
             <select x-model="modal.group_id" class="w-full bg-gray-700 rounded px-3 py-2 mt-1">
               <template x-for="g in bookmarks" :key="g.id">
-                <option :value="g.id" x-text="g.group.toUpperCase()" :selected="modal.group_id == g.id"></option>
+                <option :value="g.id" x-text="g.group" :selected="modal.group_id == g.id"></option>
               </template>
             </select>
           </label>

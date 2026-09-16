@@ -512,7 +512,7 @@ function data() {
         open: true,
         creating: true,
         credEdit: null,
-        id: null,
+            id: null,
         group_id: group.id,
         form: {
           title: prefill.title || 'New bookmark',
