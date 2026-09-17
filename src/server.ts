@@ -107,12 +107,21 @@ async function runChecks() {
   await Promise.all(
     targets.map(async (b) => {
       const r = await checkBookmark(b);
-      if (r) {
-        console.log(new Date().toISOString(), `check [${b.title}] ${b.check_type} ${b.address} -> ${r.reachable ? "up" : "DOWN"}${r.latency_ms != null ? " " + r.latency_ms + "ms" : ""}${r.status_code ? " (HTTP " + r.status_code + ")" : ""}${r.error ? " " + r.error : ""}`);
-        q.setReachable.run(r.reachable ? 1 : 0, b.id);
-        q.insertCheck.run(b.id, Date.now(), r.reachable ? 1 : 0, r.latency_ms ?? null, r.status_code ?? null, r.error ?? null);
-        changed = true;
+      if (!r) return;
+      // if the last check is much older than the interval, the process was
+      // suspended (laptop sleep) or just started — the network stack may not
+      // be ready yet, so a failure now is spurious. don't record it; the next
+      // regular check gives a trustworthy result.
+      const last = q.lastCheck.get(b.id) as any;
+      const stale = !last || Date.now() - last.time > CHECK_INTERVAL * 2.5;
+      if (stale && !r.reachable) {
+        console.log(new Date().toISOString(), `check [${b.title}] skipped stale failure after ${last ? Math.round((Date.now() - last.time) / 1000) + "s gap" : "start"}`);
+        return;
       }
+      console.log(new Date().toISOString(), `check [${b.title}] ${b.check_type} ${b.address} -> ${r.reachable ? "up" : "DOWN"}${r.latency_ms != null ? " " + r.latency_ms + "ms" : ""}${r.status_code ? " (HTTP " + r.status_code + ")" : ""}${r.error ? " " + r.error : ""}`);
+      q.setReachable.run(r.reachable ? 1 : 0, b.id);
+      q.insertCheck.run(b.id, Date.now(), r.reachable ? 1 : 0, r.latency_ms ?? null, r.status_code ?? null, r.error ?? null);
+      changed = true;
     })
   );
   if (changed) broadcast();
@@ -254,6 +263,18 @@ function maintainHistory() {
   q.deleteChecksBefore.run(now - 7 * DAY_MS);
   q.deleteDailyBefore.run(now - 365 * DAY_MS);
 }
+
+// one-time retroactive cleanup: delete failed checks that are the first check
+// after a long gap (process suspended or just started) — same rule as the
+// live skip in runChecks. idempotent, safe to run on every boot.
+db.exec(`
+  DELETE FROM checks WHERE reachable = 0 AND (
+    (SELECT MAX(time) FROM checks p WHERE p.bookmark_id = checks.bookmark_id AND p.time < checks.time) IS NULL
+    OR checks.time - (SELECT MAX(time) FROM checks p WHERE p.bookmark_id = checks.bookmark_id AND p.time < checks.time) > ${CHECK_INTERVAL * 2.5}
+  )
+`);
+const purged = db.query("SELECT changes() AS n").get() as any;
+if (purged?.n) console.log(`purged ${purged.n} stale failure(s) recorded after gaps`);
 setInterval(maintainHistory, 3_600_000);
 setTimeout(maintainHistory, 5_000);
 
@@ -516,20 +537,49 @@ const server = Bun.serve({
               if (cnt) carry = inb.reduce((a: number, r: any) => a + r.reachable, 0) / cnt;
               bars.push({
                 t: start, cnt,
+                // how many checks should have run in this bar if the bookmarker
+                // had been up the whole time (lets the ui show "not performed")
+                expected: Math.floor((Math.min(start + bucket, now) - start) / CHECK_INTERVAL),
                 up: cnt ? (carry as number) : carry,
                 lat: cnt ? { min: Math.min(...lats), avg: Math.round(lats.reduce((a: number, v: number) => a + v, 0) / lats.length), max: Math.max(...lats) } : null,
               });
             }
           } else {
-            const days = range === "1y" ? 365 : range === "90d" ? 90 : 30;
-            const rows = q.checksDailyRange.all(id, Math.floor((now - days * DAY_MS) / DAY_MS) * DAY_MS, now);
+            // day-granular ranges: bucket days so every period renders a
+            // comparable number of bars (~30-52): 1d → 48 raw bars, 30d → 30,
+            // 90d → 30 (3-day buckets), 1y → 52 (weekly buckets)
+            const spanDays = range === "1y" ? 364 : range === "90d" ? 90 : 30;
+            const bucketDays = spanDays >= 364 ? 7 : spanDays > 31 ? 3 : 1;
+            const span = spanDays * DAY_MS;
+            const rows = q.checksDailyRange.all(id, Math.floor((now - span) / DAY_MS) * DAY_MS, now);
             const map = new Map(rows.map((r: any) => [r.day, r]));
-            let carry: number | null = q.lastDailyBefore.get(id, Math.floor((now - days * DAY_MS) / DAY_MS) * DAY_MS)?.up ?? null;
-            for (let i = days; i >= 1; i--) {
-              const day = Math.floor((now - i * DAY_MS) / DAY_MS) * DAY_MS;
-              const r = map.get(day);
-              if (r) carry = r.up;
-              bars.push(r ? { t: day, cnt: r.cnt, up: r.up, lat: r.lat ? { min: null, avg: Math.round(r.lat), max: null } : null } : { t: day, cnt: 0, up: carry, lat: null });
+            let carry: number | null = q.lastDailyBefore.get(id, Math.floor((now - span) / DAY_MS) * DAY_MS)?.up ?? null;
+            const nbars = spanDays / bucketDays;
+            for (let i = spanDays; i >= 1; i -= bucketDays) {
+              // aggregate the days inside this bucket (weighted by check count)
+              let cnt = 0, upSum = 0, latSum = 0, latCnt = 0;
+              for (let j = 0; j < bucketDays; j++) {
+                const day = Math.floor((now - (i - j) * DAY_MS) / DAY_MS) * DAY_MS;
+                const r = map.get(day);
+                if (!r) continue;
+                if (r.cnt) {
+                  cnt += r.cnt;
+                  upSum += r.up * r.cnt;
+                  if (r.lat != null) { latSum += r.lat * r.cnt; latCnt += r.cnt; }
+                }
+                carry = r.up;
+              }
+              // bucket start = oldest day in the bucket
+              const start = Math.floor((now - i * DAY_MS) / DAY_MS) * DAY_MS;
+              bars.push({
+                t: start,
+                cnt,
+                // checks that should have run in this bucket if the bookmarker
+                // had been up the whole time (CHECK_INTERVAL cadence)
+                expected: Math.floor((Math.min(start + bucketDays * DAY_MS, now) - start) / CHECK_INTERVAL),
+                up: cnt ? upSum / cnt : carry,
+                lat: latCnt ? { min: null, avg: Math.round(latSum / latCnt), max: null } : null,
+              });
             }
           }
           const total = bars.reduce((a, b) => a + b.cnt, 0);

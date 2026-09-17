@@ -91,6 +91,7 @@ export const q = {
   insertCheck: db.query("INSERT INTO checks (bookmark_id, time, reachable, latency_ms, status_code, error) VALUES (?, ?, ?, ?, ?, ?)"),
   checksRange: db.query("SELECT time, reachable, latency_ms, status_code, error FROM checks WHERE bookmark_id = ? AND time >= ? AND time <= ? ORDER BY time"),
   lastCheckBefore: db.query("SELECT reachable FROM checks WHERE bookmark_id = ? AND time < ? ORDER BY time DESC LIMIT 1"),
+  lastCheck: db.query("SELECT time, reachable FROM checks WHERE bookmark_id = ? ORDER BY time DESC LIMIT 1"),
   lastDailyBefore: db.query("SELECT up FROM checks_daily WHERE bookmark_id = ? AND day < ? ORDER BY day DESC LIMIT 1"),
   checksErrors: db.query("SELECT time, latency_ms, status_code, error FROM checks WHERE bookmark_id = ? AND time >= ? AND reachable = 0 ORDER BY time DESC LIMIT 100"),
   upsertDaily: db.query("INSERT OR REPLACE INTO checks_daily (bookmark_id, day, up, cnt, lat) SELECT ?, ?, ?, ?, ?"),

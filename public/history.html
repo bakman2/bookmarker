@@ -40,7 +40,7 @@
           </div>
 
           <div class="flex gap-2 mt-6">
-            <template x-for="r in ['15m', '1h', '3h', '6h', '1d']" :key="r">
+            <template x-for="r in ['15m', '1h', '3h', '6h', '1d', '30d', '90d', '1y']" :key="r">
               <button
                 @click="range = r; load()"
                 class="px-3 py-1 text-xs rounded uppercase"
@@ -86,8 +86,8 @@
             <div class="text-[10px] uppercase text-gray-400/70 mb-1">latency (min/avg/max)</div>
             <div class="flex items-end gap-[2px] h-24 border-b border-gray-700">
               <template x-for="bar in data.bars || []" :key="'l' + bar.t">
-                <div class="flex-1 min-w-0 relative" :style="{ height: latHeight(bar) }">
-                  <div class="absolute bottom-0 left-0 right-0 rounded-t-[1px] bg-sky-500/70" :style="{ height: latBarPct(bar) }" :title="latTitle(bar)"></div>
+                <div class="flex-1 min-w-0 h-full flex items-end">
+                  <div class="w-full rounded-t-[1px] bg-sky-500/70" :style="{ height: latHeight(bar) }" :title="latTitle(bar)"></div>
                 </div>
               </template>
             </div>
@@ -155,31 +155,53 @@
             return Math.round(lats.reduce((a, v) => a + v, 0) / lats.length) + 'ms'
           },
           maxLat() {
-            const lats = (this.data.bars || []).filter(b => b.lat && b.lat.max != null).map(b => b.lat.max)
-            return lats.length ? Math.max(...lats) : null
+            // daily-rollup bars have max=null; fall back to avg for scaling
+            const vals = (this.data.bars || [])
+              .map(b => b.lat ? (b.lat.max ?? b.lat.avg) : null)
+              .filter(v => v != null)
+            return vals.length ? Math.max(...vals) : null
           },
           latHeight(bar) {
             return bar.lat && bar.lat.avg ? Math.max(4, (bar.lat.avg / (this.maxLat() || 1)) * 100) + '%' : '0'
           },
-          latBarPct(bar) {
-            return '100%'
-          },
           barClass(bar) {
-            if (bar.up === null || bar.up === undefined) return 'bg-gray-400/60'
-            if (bar.up >= 0.999) return 'bg-green-500/80' + (bar.cnt ? '' : ' opacity-40')
-            if (bar.up > 0.5) return 'bg-amber-500/80' + (bar.cnt ? '' : ' opacity-40')
-            return 'bg-red-500/80' + (bar.cnt ? '' : ' opacity-40')
+            // no checks in this period (e.g. bookmarker itself was down):
+            // unknown, not failed — never color it as a result
+            if (!bar.cnt) return 'bg-gray-400/40'
+            if (bar.up >= 0.999) return 'bg-green-500/80'
+            if (bar.up > 0.5) return 'bg-amber-500/80'
+            return 'bg-red-500/80'
           },
           barTitle(bar) {
-            if (!bar.cnt) return new Date(bar.t).toLocaleString() + ' — no checks (last known: ' + (bar.up >= 0.999 ? 'up' : 'down') + ')'
-            return new Date(bar.t).toLocaleString() + ' — ' + Math.round(bar.up * 100) + '% up (' + bar.cnt + ' checks)'
+            const when = new Date(bar.t).toLocaleString()
+            if (!bar.cnt) {
+              const last = bar.up == null ? 'unknown' : bar.up >= 0.999 ? 'up' : 'down'
+              return when + '\nno checks performed (bookmarker not running)\nlast known state: ' + last
+            }
+            const ok = Math.round((bar.up ?? 0) * bar.cnt)
+            const failed = bar.cnt - ok
+            const missed = Math.max(0, (bar.expected || 0) - bar.cnt)
+            const lines = [when]
+            lines.push('checks: ' + bar.cnt + (bar.expected ? ' of ' + bar.expected : ''))
+            lines.push('succeeded: ' + ok + ' · failed: ' + failed)
+            if (missed > 0) lines.push('not performed: ' + missed + ' (bookmarker not running)')
+            lines.push('uptime: ' + Math.round((bar.up ?? 0) * 100) + '% (of performed checks)')
+            if (bar.lat && bar.lat.avg != null) lines.push('avg latency: ' + bar.lat.avg + 'ms')
+            return lines.join('\n')
           },
           latTitle(bar) {
             if (!bar.lat) return new Date(bar.t).toLocaleString() + ' — no latency'
-            return new Date(bar.t).toLocaleString() + ' — min ' + bar.lat.min + 'ms · avg ' + bar.lat.avg + 'ms · max ' + bar.lat.max + 'ms'
+            const parts = ['avg ' + bar.lat.avg + 'ms']
+            if (bar.lat.min != null) parts.unshift('min ' + bar.lat.min + 'ms')
+            if (bar.lat.max != null) parts.push('max ' + bar.lat.max + 'ms')
+            return new Date(bar.t).toLocaleString() + ' — ' + parts.join(' · ')
           },
           timeLabel(t) {
-            return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+            const d = new Date(t)
+            // day-granular ranges: label with date only, otherwise date+time
+            return ['1d', '30d', '90d', '1y'].includes(this.range) && this.range !== '1d'
+              ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+              : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
           },
         }
       }
