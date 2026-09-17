@@ -24,6 +24,7 @@ recent failures.
 - 5 color themes, switchable in edit mode (default, slate, midnight, paper, monokai)
 - Live updates across all connected browsers (WebSocket)
 - Discovery mode to scan for servers and ports on the local network for easy adding of bookmarks
+- Admin password for edit mode; viewing stays open to everyone on the network
 
 ## Install with Docker
 
@@ -49,10 +50,52 @@ your network at `http://<host-ip>:3000` (e.g. `http://192.168.1.10:3000`).
 All data (bookmarks, theme, check history) lives in a single SQLite file on a
 persistent Docker volume, so it survives restarts and rebuilds.
 
-> **Note:** there is no built-in authentication. Anyone who can reach the URL
-> can see and edit your bookmarks. On a trusted home network this is usually
-> fine; for anything else, restrict access (reverse-proxy auth, firewall rules,
-> or a VPN like WireGuard/Tailscale).
+## Admin password
+
+Viewing the dashboard is open to everyone who can reach it. **Editing**
+(add/edit/delete bookmarks and categories, themes) requires the admin
+password — enforced server-side, so it cannot be bypassed in the browser.
+
+- **First run:** open the dashboard and click the edit icon (or press
+  `cmd/ctrl+e`). You are prompted to set the admin password (min. 8 chars).
+  This one-time prompt appears only while no password exists.
+- **Sessions** last 30 days per browser and survive container restarts.
+  Logging out invalidates only the local browser.
+
+### Set the password via environment (optional, before first start)
+
+If you prefer not to use the web prompt, seed the password on first start:
+
+```yaml
+# compose.yaml
+services:
+  bookmarker:
+    environment:
+      - BOOKMARKER_PASSWORD=yourpassword   # only used if no password exists yet
+```
+
+`docker compose up -d --build` then skips the setup prompt. The variable is
+only read while no password is set — removing it later changes nothing.
+
+### Reset a lost password
+
+Anyone with shell access to the host already controls the app's data, so a
+password reset via the container is safe:
+
+```bash
+# interactive (you type the new password twice, input is hidden)
+docker compose exec bookmarker bun run scripts/reset-password.ts
+
+# or non-interactive
+echo 'yournewpassword' | docker compose exec -T bookmarker bun run scripts/reset-password.ts
+```
+
+Resetting also rotates the session secret, which logs out every browser
+(including the one that forgot the password).
+
+> **Note:** even with a password set, anyone who can reach the URL can still
+> *see* your bookmarks. On an untrusted network, additionally restrict access
+> (reverse-proxy auth, firewall rules, or a VPN like WireGuard/Tailscale).
 
 ### Useful commands
 
@@ -118,11 +161,11 @@ bookmarks. Tighten or widen it as follows:
   }
   ```
 
-  Caddy obtains and renews the HTTPS certificate automatically. **Note:** the
-  app itself has no authentication — anyone who can reach the URL can see and
-  edit your bookmarks, so use a private network or add your own auth layer
-  (reverse-proxy basic auth, VPN like WireGuard/Tailscale) before exposing it
-  publicly.
+  Caddy obtains and renews the HTTPS certificate automatically. **Note:**
+  anyone who can reach the URL can see your bookmarks (editing requires the
+  admin password, see above), so use a private network or add your own auth
+  layer (reverse-proxy basic auth, VPN like WireGuard/Tailscale) before
+  exposing it publicly.
 
 ## Development (no Docker)
 
