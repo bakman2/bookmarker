@@ -1,6 +1,21 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import crypto from "node:crypto";
+
+// pbkdf2 password hashing (portable across bun versions)
+const PBKDF2_ITERS = 120_000;
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(password, salt, PBKDF2_ITERS, 32, "sha256").toString("hex");
+  return `pbkdf2:${PBKDF2_ITERS}:${salt}:${hash}`;
+}
+export function verifyPassword(password: string, stored: string): boolean {
+  const [scheme, iters, salt, hash] = (stored ?? "").split(":");
+  if (scheme !== "pbkdf2" || !iters || !salt || !hash) return false;
+  const test = crypto.pbkdf2Sync(password, salt, Number(iters), 32, "sha256").toString("hex");
+  return test.length === hash.length && crypto.timingSafeEqual(Buffer.from(test), Buffer.from(hash));
+}
 
 // db location is configurable for container deployments (persistent volume)
 const DB_PATH = process.env.BOOKMARKER_DB ?? "bookmarker.db";

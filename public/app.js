@@ -7,6 +7,10 @@ function data() {
     connected: false,
     ws: null,
     editing: false,
+    admin: false,
+    setup: false,
+    login: { open: false, busy: false, error: '', password: '', confirm: '' },
+    collapsed: {},
     modal: { open: false, creating: false, credEdit: null, dd: { cat: false, check: false }, id: null, group_id: null, form: {} },
     modalDownAt: null,
     dragId: null,
@@ -20,12 +24,30 @@ function data() {
       this.initPointerHandlers()
       this.connectWebSocket()
       this.fetchThemes()
+      try {
+        this.collapsed = JSON.parse(localStorage.getItem('collapsedGroups') || '{}')
+      } catch {
+        this.collapsed = {}
+      }
+      this.sessionReady = fetch('/api/session', { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((s) => {
+          this.admin = !!s.admin
+          this.setup = !!s.setup
+          if (s.setup) this.login.open = true
+        })
+        .catch(() => {})
       document.addEventListener('keydown', (e) => {
         if (e.key.toLowerCase() === 'e' && (e.ctrlKey || e.metaKey)) {
           e.preventDefault()
           this.toggleEdit()
         }
       })
+    },
+
+    toggleGroup(id) {
+      this.collapsed[id] = !this.collapsed[id]
+      localStorage.setItem('collapsedGroups', JSON.stringify(this.collapsed))
     },
 
     async toggleEdit() {
@@ -36,12 +58,71 @@ function data() {
         el.blur()
         return
       }
+      if (!this.admin) {
+        this.openLogin()
+        return
+      }
       if (this.editing) {
         // leaving edit mode: discard categories that were never customized
         const stale = this.bookmarks.filter((g) => this.isNewGroup(g))
         for (const g of stale) await this.api('/api/groups/' + g.id, 'DELETE')
       }
       this.editing = !this.editing
+    },
+
+    async openLogin() {
+      // always confirm the server state fresh: setup vs login
+      try {
+        const s = await fetch('/api/session', { cache: 'no-store' }).then((r) => r.json())
+        this.admin = !!s.admin
+        this.setup = !!s.setup
+      } catch {}
+      if (this.admin) {
+        this.editing = true
+        return
+      }
+      this.login = { open: true, busy: false, error: '', password: '', confirm: '' }
+      this.$nextTick(() => document.getElementById('login-password')?.focus())
+    },
+
+    async submitLogin() {
+      if (this.login.busy) return
+      this.login.busy = true
+      this.login.error = ''
+      // the server decides: first run sets the password, afterwards it verifies it
+      if (this.setup && (this.login.password || '').length < 8) {
+        this.login.error = 'password must be at least 8 characters'
+        this.login.busy = false
+        return
+      }
+      if (this.setup && this.login.password !== this.login.confirm) {
+        this.login.error = 'passwords do not match'
+        this.login.busy = false
+        return
+      }
+      try {
+        const r = await this.api('/api/auth', 'POST', { password: this.login.password })
+        if (r.error) {
+          this.login.error = r.error
+          // wrong password means a password already exists
+          if (r.error === 'wrong password') this.setup = false
+        } else {
+          this.admin = true
+          this.setup = false
+          this.login.open = false
+          this.editing = true
+        }
+      } catch {
+        this.login.error = 'could not reach the server'
+      } finally {
+        this.login.busy = false
+      }
+    },
+
+    async logout() {
+      await this.api('/api/logout', 'POST', {})
+      this.admin = false
+      this.editing = false
     },
 
     isNewGroup(group) {

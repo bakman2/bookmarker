@@ -1,7 +1,8 @@
-import { q, db } from "./db";
+import { q, db, hashPassword, verifyPassword } from "./db";
 import { checkBookmark } from "./checker";
 import os from "node:os";
 import dns from "node:dns/promises";
+import crypto from "node:crypto";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const CHECK_INTERVAL = 30_000;
@@ -260,7 +261,7 @@ setTimeout(maintainHistory, 5_000);
 function json(data: any, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 }
 async function body(req: Request): Promise<any> {
@@ -271,8 +272,93 @@ async function body(req: Request): Promise<any> {
   }
 }
 
+// ---- auth ----
+const SESSION_COOKIE = "bm_session";
+const SESSION_TTL_MS = 30 * DAY_MS;
+
+function sessionSecret(): string {
+  let s = q.setting.get("session_secret")?.value;
+  if (!s) {
+    s = crypto.randomBytes(32).toString("hex");
+    q.setSetting.run("session_secret", s);
+  }
+  return s;
+}
+// optional first-run seeding via env (compose: BOOKMARKER_PASSWORD)
+if (process.env.BOOKMARKER_PASSWORD && !q.setting.get("password_hash")) {
+  q.setSetting.run("password_hash", hashPassword(process.env.BOOKMARKER_PASSWORD));
+  console.log("password seeded from BOOKMARKER_PASSWORD env");
+}
+if (!q.setting.get("session_secret")) sessionSecret();
+
+function sign(payload: string): string {
+  return new Bun.CryptoHasher("sha256", sessionSecret()).update(payload).digest("hex");
+}
+function makeToken(): string {
+  const exp = String(Date.now() + SESSION_TTL_MS);
+  return `${exp}.${sign(exp)}`;
+}
+function verifyToken(token: string | undefined): boolean {
+  if (!token) return false;
+  const [exp, sig] = token.split(".");
+  if (!exp || !sig || Number(exp) < Date.now()) return false;
+  const expect = sign(exp);
+  return sig.length === expect.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect));
+}
+function isAuthed(req: Request): boolean {
+  const cookie = req.headers.get("cookie") ?? "";
+  const m = cookie.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`));
+  return verifyToken(m?.[1]);
+}
+function sessionCookie(token: string): string {
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`;
+}
+
+// naive per-IP login rate limiting
+const loginThrottle = new Map<string, { n: number; until: number }>();
+
+async function handleAuth(req: Request, path: string): Promise<Response | null> {
+  const ip = server.requestIP(req)?.address ?? "?";
+  if (path === "/api/session" && req.method === "GET") {
+    return json({ admin: isAuthed(req), setup: !q.setting.get("password_hash") });
+  }
+  if (path === "/api/auth" && req.method === "POST") {
+    const e = loginThrottle.get(ip);
+    if (e && e.until > Date.now() && e.n >= 5) return json({ error: "too many attempts, try later" }, 429);
+    const { password } = await body(req);
+    const pw = String(password ?? "");
+    const hashRow = q.setting.get("password_hash");
+    if (!hashRow) {
+      // first run: this call sets the initial password
+      if (pw.length < 8) return json({ error: "password must be at least 8 characters" }, 400);
+      q.setSetting.run("password_hash", hashPassword(pw));
+      sessionSecret();
+      const res = json({ ok: true, setup: true });
+      res.headers.append("set-cookie", sessionCookie(makeToken()));
+      return res;
+    }
+    const ok = verifyPassword(pw, hashRow.value);
+    if (!ok) {
+      const cur = loginThrottle.get(ip);
+      const n = (cur && cur.until > Date.now() ? cur.n : 0) + 1;
+      loginThrottle.set(ip, { n, until: Date.now() + 60_000 });
+      return json({ error: "wrong password" }, 401);
+    }
+    loginThrottle.delete(ip);
+    const res = json({ ok: true });
+    res.headers.append("set-cookie", sessionCookie(makeToken()));
+    return res;
+  }
+  if (path === "/api/logout" && req.method === "POST") {
+    const res = json({ ok: true });
+    res.headers.append("set-cookie", `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`);
+    return res;
+  }
+  return null;
+}
+
 // ---- server ----
-Bun.serve({
+const server = Bun.serve({
   port: PORT,
   async fetch(req, server) {
     const url = new URL(req.url);
@@ -289,6 +375,13 @@ Bun.serve({
       const [, resource, idStr, sub] = seg;
       const id = idStr ? Number(idStr) : null;
       const method = req.method;
+
+      // auth endpoints (no session required)
+      const authRes = await handleAuth(req, path);
+      if (authRes) return authRes;
+
+      // all mutating requests require an admin session
+      if (method !== "GET" && !isAuthed(req)) return json({ error: "unauthorized" }, 401);
 
       if (resource === "themes" && method === "GET") return json(THEMES);
 
