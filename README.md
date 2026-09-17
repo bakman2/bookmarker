@@ -54,7 +54,7 @@ persistent Docker volume, so it survives restarts and rebuilds.
 
 Viewing the dashboard is open to everyone who can reach it. **Editing**
 (add/edit/delete bookmarks and categories, themes) requires the admin
-password — enforced server-side, so it cannot be bypassed in the browser.
+password.
 
 - **First run:** open the dashboard and click the edit icon (or press
   `cmd/ctrl+e`). You are prompted to set the admin password (min. 8 chars).
@@ -77,21 +77,17 @@ services:
 `docker compose up -d --build` then skips the setup prompt. The variable is
 only read while no password is set — removing it later changes nothing.
 
-### Reset a lost password
-
-Anyone with shell access to the host already controls the app's data, so a
-password reset via the container is safe:
+### Reset password
 
 ```bash
-# interactive (you type the new password twice, input is hidden)
+# interactive (type the new password twice)
 docker compose exec bookmarker bun run scripts/reset-password.ts
 
 # or non-interactive
 echo 'yournewpassword' | docker compose exec -T bookmarker bun run scripts/reset-password.ts
 ```
 
-Resetting also rotates the session secret, which logs out every browser
-(including the one that forgot the password).
+Resetting rotates the session secret, which logs out every browser
 
 > **Note:** even with a password set, anyone who can reach the URL can still
 > *see* your bookmarks. On an untrusted network, additionally restrict access
