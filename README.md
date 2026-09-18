@@ -30,6 +30,31 @@ recent failures.
 
 Requires [Docker](https://docs.docker.com/get-docker/) with the Compose plugin.
 
+### Option A: prebuilt image from Docker Hub (recommended)
+
+```yaml
+# compose.yaml
+services:
+  bookmarker:
+    image: z1rconium/bookmarker:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - bookmarker-data:/data
+    restart: unless-stopped
+
+volumes:
+  bookmarker-data:
+```
+
+```bash
+docker compose up -d
+```
+
+Images are published for `linux/amd64` and `linux/arm64` (Apple Silicon, Raspberry Pi, etc.).
+
+### Option B: build from source
+
 ```bash
 git clone https://github.com/bakman2/bookmarker.git   # or just copy the project directory
 cd bookmarker
@@ -39,8 +64,15 @@ docker compose up -d --build
 ## Update
 
 ```bash
-git pull 
+git pull
 sudo docker compose up -d --build
+```
+
+If you use the prebuilt image (Option A), update instead with:
+
+```bash
+docker compose pull
+docker compose up -d
 ```
 
 The dashboard is then available at **http://localhost:3000**, and it listens on
@@ -131,7 +163,7 @@ bookmarks. Tighten or widen it as follows:
   ```yaml
   services:
     bookmarker:
-      build: ./docker
+      image: z1rconium/bookmarker:latest
       volumes:
         - bookmarker-data:/data
       restart: unless-stopped
