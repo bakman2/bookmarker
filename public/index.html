@@ -214,9 +214,13 @@
                 x-show="editing && dragId === null"
                 @click="addBookmark(group)"
                 title="add bookmark"
-                class="flex items-center justify-center min-h-12 h-full p-2 border border-dashed border-gray-500/60 hover:border-gray-300/80 text-gray-500 hover:text-gray-200 rounded cursor-pointer"
+                class="relative flex items-center justify-center h-[52px] p-2 leading-tight border border-dashed border-gray-500/60 hover:border-gray-300/80 text-gray-500 hover:text-gray-200 rounded cursor-pointer"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <div class="invisible" aria-hidden="true">
+                  <div class="uppercase">A</div>
+                  <div x-show="theme.subtitle == 'show'" class="text-xs uppercase">A</div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute">
                   <line x1="12" y1="5" x2="12" y2="19"/>
                   <line x1="5" y1="12" x2="19" y2="12"/>
                 </svg>
