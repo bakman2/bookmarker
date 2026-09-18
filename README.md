@@ -55,20 +55,10 @@ Images are published for `linux/amd64` and `linux/arm64` (Apple Silicon, Raspber
 
 ### Option B: build from source
 
-```bash
-git clone https://github.com/bakman2/bookmarker.git   # or just copy the project directory
-cd bookmarker
-docker compose up -d --build
-```
+Clone or copy the repository, then run `docker compose up -d --build` — the
+included `compose.yaml` builds the local `docker/Dockerfile`.
 
 ## Update
-
-```bash
-git pull
-sudo docker compose up -d --build
-```
-
-If you use the prebuilt image (Option A), update instead with:
 
 ```bash
 docker compose pull
